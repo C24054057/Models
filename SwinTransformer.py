@@ -604,13 +604,8 @@ class SwinTransformerV2(nn.Module):
         for bly in self.layers:
             bly._init_respostnorm()
 
-        # voi size
-        self.v_fc1 = nn.Linear(3, 16)
-        self.v_fc2 = nn.Linear(16, 64)
-        self.v_fc3 = nn.Linear(64, 64)
-
         # final
-        len_of_features = 64 + len_of_clinical_features
+        len_of_features = 64
         self.final_fc1 = nn.Linear(len_of_features, len_of_features // 2) # 214 = dim[-1] + dim(clinical_info) which is 150
         self.final_fc2 = nn.Linear(len_of_features // 2, 2)
         self.final_bn1 = nn.BatchNorm1d(len_of_features // 2)
@@ -647,17 +642,8 @@ class SwinTransformerV2(nn.Module):
         x = torch.flatten(x, 1)
         return x
 
-    def forward(self, x, clinical_info, voi_size):
-        x_feature = self.forward_features(x)
-        voi_feature = self.v_fc1(voi_size)
-        voi_feature = self.v_fc2(voi_feature)
-        voi_feature = self.v_fc3(voi_feature)
-
-        b, n = x_feature.size()
-        _sum = (x_feature * voi_feature).sum(dim=(-1))
-        x = x_feature - (_sum / n).view(b, 1).expand_as(x_feature)
-
-        x = torch.cat((x, clinical_info), 1)
+    def forward(self, x):
+        x = self.forward_features(x)
         x = F.leaky_relu(self.final_bn1(self.final_fc1(x)))
         x = self.final_fc2(x)
         x = self.softmax(x)
